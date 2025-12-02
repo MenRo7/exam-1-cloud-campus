@@ -10,4 +10,14 @@ app.post('/update-stock', (req, res) => {
     res.send(`Stock mis à jour pour le produit de ID : ${productId}`);
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'OK',
+        service: 'stock-management',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
 app.listen(PORT, () => console.log(`Service de gestion des stocks sur le port ${PORT}`));

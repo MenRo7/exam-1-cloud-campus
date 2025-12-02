@@ -44,6 +44,16 @@ app.post('/notify', async (req, res) => {
   }
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    service: 'notifications',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Lancer le service Notification
 const PORT = process.env.NOTIFI_PORT || 4002;
 app.listen(PORT, () => {

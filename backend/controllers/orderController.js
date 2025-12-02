@@ -1,7 +1,8 @@
 // backend/controllers/orderController.js
 const axios = require('axios');
 const Order = require('../models/Order');
-const orderLog = require('debug')('orderRoutes:console')
+const orderLog = require('debug')('orderRoutes:console');
+const logger = require('../config/logger');
 
 
 exports.createOrder = async (req, res) => {
@@ -12,6 +13,13 @@ exports.createOrder = async (req, res) => {
   console.log(`items are ${JSON.stringify(req.body)}`)
   //const { items } = req.body;
   let userId = req.user.userId;
+
+  // Log de création de commande
+  logger.info('Tentative de création de commande', {
+    userId,
+    itemsCount: items?.length,
+    ip: req.ip
+  });
   // let shippingAddress = {
   //   "street": "123 Main St",
   //   "city": "New York",
@@ -56,6 +64,15 @@ exports.createOrder = async (req, res) => {
 
     console.log('Commande sauvegardée :', savedOrder);
 
+    // Audit : commande créée
+    logger.audit('ORDER_CREATED', userId, {
+      orderId: savedOrder._id,
+      total,
+      itemsCount: items.length,
+      paymentMethod,
+      shippingMethod
+    });
+
     // Appel au micro-service de notification
     try {
       await axios.post('http://localhost:8000/notify', {
@@ -87,6 +104,11 @@ exports.createOrder = async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur lors de la création de la commande', error);
+    logger.error('Erreur lors de la création de commande', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.userId
+    });
     res.status(500).json({
       message: 'Une erreur est survenue lors de la création de la commande.',
     });
@@ -169,6 +191,13 @@ exports.updateOrderStatus = async (req, res) => {
   const { status } = req.body;
 
   console.log(`dump console log order id => ${orderId} status = ${status}`);
+
+  logger.info('Tentative de mise à jour du statut de commande', {
+    orderId,
+    newStatus: status,
+    userId: req.user?.userId
+  });
+
   try {
     // Vérification des données
     if (!status) {
@@ -183,12 +212,28 @@ exports.updateOrderStatus = async (req, res) => {
     );
 
     if (!order) {
+      logger.warn('Tentative de mise à jour de commande inexistante', {
+        orderId,
+        userId: req.user?.userId
+      });
       return res.status(404).json({ message: "Commande non trouvée." });
     }
+
+    // Audit : statut de commande mis à jour
+    logger.audit('ORDER_STATUS_UPDATED', req.user?.userId || 'system', {
+      orderId,
+      oldStatus: order.status,
+      newStatus: status
+    });
 
     res.status(200).json({ message: "Statut mis à jour avec succès", order });
   } catch (error) {
     console.error("Erreur lors de la mise à jour de la commande :", error);
+    logger.error('Erreur lors de la mise à jour du statut de commande', {
+      error: error.message,
+      stack: error.stack,
+      orderId
+    });
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

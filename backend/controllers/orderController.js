@@ -1,6 +1,7 @@
 // backend/controllers/orderController.js
 const axios = require('axios');
 const Order = require('../models/Order');
+const Product = require('../models/Product');
 const orderLog = require('debug')('orderRoutes:console');
 const logger = require('../config/logger');
 
@@ -38,6 +39,34 @@ exports.createOrder = async (req, res) => {
   }
 
   try {
+    // Vérifier la disponibilité du stock pour chaque produit
+    for (const item of items) {
+      const product = await Product.findById(item.productId);
+
+      if (!product) {
+        logger.warn('Produit non trouvé lors de la création de commande', {
+          productId: item.productId,
+          userId
+        });
+        return res.status(404).json({
+          message: `Produit avec l'ID ${item.productId} non trouvé.`
+        });
+      }
+
+      if (product.stock < item.quantity) {
+        logger.warn('Stock insuffisant pour la commande', {
+          productId: item.productId,
+          productName: product.name,
+          requestedQuantity: item.quantity,
+          availableStock: product.stock,
+          userId
+        });
+        return res.status(400).json({
+          message: `Stock insuffisant pour le produit "${product.name}". Disponible: ${product.stock}, Demandé: ${item.quantity}`
+        });
+      }
+    }
+
     // Logique pour préparer les détails de la commande
     const orderDetails = items.map(({ productId, quantity, price }) => {
       console.log(`Produit ID : ${productId}, Quantité : ${quantity}, Price ${price}`);
@@ -64,6 +93,21 @@ exports.createOrder = async (req, res) => {
 
     console.log('Commande sauvegardée :', savedOrder);
 
+    // Décrémenter le stock pour chaque produit de la commande
+    for (const item of items) {
+      await Product.findByIdAndUpdate(
+        item.productId,
+        { $inc: { stock: -item.quantity } },
+        { new: true }
+      );
+
+      logger.info('Stock décrémenté', {
+        productId: item.productId,
+        quantityDecremented: item.quantity,
+        orderId: savedOrder._id
+      });
+    }
+
     // Audit : commande créée
     logger.audit('ORDER_CREATED', userId, {
       orderId: savedOrder._id,
@@ -75,7 +119,8 @@ exports.createOrder = async (req, res) => {
 
     // Appel au micro-service de notification
     try {
-      await axios.post('http://localhost:8000/notify', {
+      const gatewayUrl = process.env.GATEWAY_URL || 'http://localhost:8000';
+      await axios.post(`${gatewayUrl}/notify`, {
         to: 'syaob@yahoo.fr',
         subject: 'Nouvelle Commande Créée',
         text: `Une commande a été créée avec succès pour les produits suivants : \n${orderDetails
@@ -171,19 +216,136 @@ exports.createOrder = async (req, res) => {
 
 exports.deleteOrder = async(req, res)=>{
     const { orderId } = req.body;
-    console.log(`orderId to delete is ${orderId}`)
+
+    logger.info('Tentative de suppression de commande', {
+      orderId,
+      userId: req.user?.userId
+    });
+
+    try {
+      // Vérification des données
+      if (!orderId) {
+        return res.status(400).json({ message: "L'ID de commande est requis." });
+      }
+
+      // Recherche et suppression de la commande
+      const order = await Order.findByIdAndDelete(orderId);
+
+      if (!order) {
+        logger.warn('Tentative de suppression de commande inexistante', {
+          orderId,
+          userId: req.user?.userId
+        });
+        return res.status(404).json({ message: "Commande non trouvée." });
+      }
+
+      // Audit : commande supprimée
+      logger.audit('ORDER_DELETED', req.user?.userId || 'system', {
+        orderId,
+        deletedOrder: {
+          total: order.total,
+          status: order.status,
+          itemsCount: order.items?.length
+        }
+      });
+
+      res.status(200).json({
+        message: `Commande ${orderId} supprimée avec succès.`,
+        deletedOrder: order
+      });
+    } catch (error) {
+      console.error("Erreur lors de la suppression de la commande :", error);
+      logger.error('Erreur lors de la suppression de commande', {
+        error: error.message,
+        stack: error.stack,
+        orderId
+      });
+      res.status(500).json({ message: "Erreur serveur." });
+    }
 }
 
 exports.getOrders = async(req, res)=>{
+  try {
+    const orders = await Order.find();
+    res.status(200).json(orders);
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des commandes', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ message: 'Erreur serveur lors de la récupération des commandes.' });
+  }
+}
 
-  const orders = await Order.find();
-      res.status(200).json(orders);
- 
+exports.getUserOrders = async(req, res)=>{
+  try {
+    const userId = req.user.userId;
+    const orders = await Order.find({ userId }).sort({ createdAt: -1 });
+
+    logger.info('Récupération des commandes utilisateur', {
+      userId,
+      ordersCount: orders.length
+    });
+
+    res.status(200).json(orders);
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des commandes utilisateur', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.userId
+    });
+    res.status(500).json({ message: 'Erreur serveur lors de la récupération des commandes.' });
+  }
 }
 
 exports.validateOrder = async (req, res) => {
   const { orderId } = req.body;
-  res.status(200).json({message: `Commande ${orderId} validée avec succès.`})
+
+  logger.info('Tentative de validation de commande', {
+    orderId,
+    userId: req.user?.userId
+  });
+
+  try {
+    // Vérification des données
+    if (!orderId) {
+      return res.status(400).json({ message: "L'ID de commande est requis." });
+    }
+
+    // Recherche de la commande et mise à jour du statut
+    const order = await Order.findByIdAndUpdate(
+      orderId,
+      { status: 'validated', updatedAt: new Date() },
+      { new: true }
+    );
+
+    if (!order) {
+      logger.warn('Tentative de validation de commande inexistante', {
+        orderId,
+        userId: req.user?.userId
+      });
+      return res.status(404).json({ message: "Commande non trouvée." });
+    }
+
+    // Audit : commande validée
+    logger.audit('ORDER_VALIDATED', req.user?.userId || 'system', {
+      orderId,
+      total: order.total
+    });
+
+    res.status(200).json({
+      message: `Commande ${orderId} validée avec succès.`,
+      order
+    });
+  } catch (error) {
+    console.error("Erreur lors de la validation de la commande :", error);
+    logger.error('Erreur lors de la validation de commande', {
+      error: error.message,
+      stack: error.stack,
+      orderId
+    });
+    res.status(500).json({ message: "Erreur serveur." });
+  }
 }
 
 exports.updateOrderStatus = async (req, res) => {

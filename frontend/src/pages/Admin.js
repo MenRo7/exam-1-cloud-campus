@@ -6,6 +6,7 @@ import {
   // validateOrder,
   getProducts,
   updateProductStock,
+  createProduct,
 } from "../services/adminApi";
 
 const Admin = () => {
@@ -15,6 +16,16 @@ const Admin = () => {
   const [loadingOrder, setLoadingOrder] = useState(null);
   const [newStock, setNewStock] = useState({}); // Stock temporaire par produit
   const [updatingStock, setUpdatingStock] = useState(null); // Stock en cours de mise à jour
+
+  // États pour le formulaire de création de produit
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    price: "",
+    stock: "",
+    description: ""
+  });
+  const [creatingProduct, setCreatingProduct] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -81,6 +92,55 @@ const Admin = () => {
     }
   };
 
+  const handleCreateProduct = async (e) => {
+    e.preventDefault();
+
+    // Validation
+    if (!newProduct.name || !newProduct.price || newProduct.stock === "") {
+      alert("Veuillez remplir tous les champs obligatoires (nom, prix, stock).");
+      return;
+    }
+
+    if (parseFloat(newProduct.price) <= 0) {
+      alert("Le prix doit être supérieur à 0.");
+      return;
+    }
+
+    if (parseInt(newProduct.stock) < 0) {
+      alert("Le stock ne peut pas être négatif.");
+      return;
+    }
+
+    try {
+      setCreatingProduct(true);
+      const response = await createProduct({
+        name: newProduct.name,
+        price: parseFloat(newProduct.price),
+        stock: parseInt(newProduct.stock),
+        description: newProduct.description
+      });
+
+      alert("Produit créé avec succès !");
+
+      // Ajouter le nouveau produit à la liste
+      setProducts([...products, response.data.product]);
+
+      // Réinitialiser le formulaire
+      setNewProduct({
+        name: "",
+        price: "",
+        stock: "",
+        description: ""
+      });
+      setShowProductForm(false);
+    } catch (error) {
+      console.error("Erreur lors de la création du produit :", error);
+      alert(error.response?.data?.message || "Échec de la création du produit.");
+    } finally {
+      setCreatingProduct(false);
+    }
+  };
+
   return (
     <div className="p-8">
       <h2 className="text-2xl font-bold mb-4">Page d'administration</h2>
@@ -136,7 +196,92 @@ const Admin = () => {
 
       {/* Gestion des Produits */}
       <div>
-        <h2 className="text-xl font-bold">Gestion des Produits</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Gestion des Produits</h2>
+          <button
+            onClick={() => setShowProductForm(!showProductForm)}
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+          >
+            {showProductForm ? "Annuler" : "Ajouter un produit"}
+          </button>
+        </div>
+
+        {/* Formulaire de création de produit */}
+        {showProductForm && (
+          <form
+            onSubmit={handleCreateProduct}
+            className="bg-gray-100 p-4 rounded mb-4"
+          >
+            <h3 className="text-lg font-semibold mb-3">Nouveau Produit</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-1 font-medium">Nom *</label>
+                <input
+                  type="text"
+                  value={newProduct.name}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, name: e.target.value })
+                  }
+                  className="border p-2 w-full rounded"
+                  placeholder="Nom du produit"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Prix (€) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={newProduct.price}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, price: e.target.value })
+                  }
+                  className="border p-2 w-full rounded"
+                  placeholder="Prix"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Stock *</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newProduct.stock}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, stock: e.target.value })
+                  }
+                  className="border p-2 w-full rounded"
+                  placeholder="Quantité en stock"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Description</label>
+                <input
+                  type="text"
+                  value={newProduct.description}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      description: e.target.value,
+                    })
+                  }
+                  className="border p-2 w-full rounded"
+                  placeholder="Description (optionnel)"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="bg-blue-500 text-white px-6 py-2 mt-4 rounded hover:bg-blue-600"
+              disabled={creatingProduct}
+            >
+              {creatingProduct ? "Création en cours..." : "Créer le produit"}
+            </button>
+          </form>
+        )}
+
         <table className="min-w-full border">
           <thead>
             <tr className="bg-gray-200">

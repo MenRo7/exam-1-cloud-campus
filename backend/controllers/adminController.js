@@ -20,9 +20,16 @@ exports.updateOrderStatus = async (req, res) => {
 
   try {
     await Order.findByIdAndUpdate(id, { status });
-    await axios.post('http://localhost:3001/notify', {
-      message: `Le statut de la commande ${id} a été mis à jour en "${status}".`,
-    });
+
+    // Notification optionnelle
+    try {
+      await axios.post('http://localhost:3001/notify', {
+        message: `Le statut de la commande ${id} a été mis à jour en "${status}".`,
+      });
+    } catch (notifyError) {
+      console.log('Service de notification non disponible');
+    }
+
     res.json({ message: `Statut de la commande ${id} mis à jour` });
   } catch (error) {
     res.status(500).json({ message: 'Erreur de mise à jour du statut de la commande' });
@@ -35,9 +42,16 @@ exports.validateOrder = async (req, res) => {
 
   try {
     await Order.findByIdAndUpdate(id, { status: 'Validée' });
-    await axios.post('http://localhost:3001/notify', {
-      message: `La commande ${id} a été validée.`,
-    });
+
+    // Notification optionnelle
+    try {
+      await axios.post('http://localhost:3001/notify', {
+        message: `La commande ${id} a été validée.`,
+      });
+    } catch (notifyError) {
+      console.log('Service de notification non disponible');
+    }
+
     res.json({ message: `Commande ${id} validée` });
   } catch (error) {
     res.status(500).json({ message: 'Erreur lors de la validation de la commande' });
@@ -61,11 +75,64 @@ exports.updateProductStock = async (req, res) => {
 
   try {
     await Product.findByIdAndUpdate(id, { stock });
-    await axios.post('http://localhost:3001/notify', {
-      message: `Le stock du produit ${id} a été mis à jour à ${stock}.`,
-    });
+
+    // Notification optionnelle
+    try {
+      await axios.post('http://localhost:3001/notify', {
+        message: `Le stock du produit ${id} a été mis à jour à ${stock}.`,
+      });
+    } catch (notifyError) {
+      console.log('Service de notification non disponible');
+    }
+
     res.json({ message: `Stock du produit ${id} mis à jour` });
   } catch (error) {
     res.status(500).json({ message: 'Erreur lors de la mise à jour du stock du produit' });
+  }
+};
+
+// Créer un nouveau produit
+exports.createProduct = async (req, res) => {
+  const { name, price, stock, description } = req.body;
+
+  // Validation des champs
+  if (!name || !price || stock === undefined) {
+    return res.status(400).json({ message: 'Nom, prix et stock sont requis.' });
+  }
+
+  if (price <= 0) {
+    return res.status(400).json({ message: 'Le prix doit être supérieur à 0.' });
+  }
+
+  if (stock < 0) {
+    return res.status(400).json({ message: 'Le stock ne peut pas être négatif.' });
+  }
+
+  try {
+    const newProduct = new Product({
+      name,
+      price,
+      stock,
+      description: description || ''
+    });
+
+    await newProduct.save();
+
+    // Notification optionnelle (ne bloque pas si le service n'est pas disponible)
+    try {
+      await axios.post('http://localhost:3001/notify', {
+        message: `Un nouveau produit "${name}" a été ajouté avec un stock de ${stock}.`,
+      });
+    } catch (notifyError) {
+      console.log('Service de notification non disponible');
+    }
+
+    res.status(201).json({
+      message: 'Produit créé avec succès',
+      product: newProduct
+    });
+  } catch (error) {
+    console.error('Erreur lors de la création du produit:', error);
+    res.status(500).json({ message: 'Erreur lors de la création du produit' });
   }
 };

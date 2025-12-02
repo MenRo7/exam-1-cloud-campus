@@ -49,7 +49,7 @@ const orderSchema = new mongoose.Schema(
     },
     shippingMethod: {
       type: String,
-      enum: ['colissimo', 'chronopost'],
+      enum: ['colissimo', 'chronopost'], // Accepter minuscule seulement
       required: true,
     },
     createdAt: {

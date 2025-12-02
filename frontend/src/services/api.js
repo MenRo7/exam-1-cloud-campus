@@ -15,3 +15,12 @@ export const createOrder = (orderData) => {
         },
     });
 };
+
+export const getUserOrders = () => {
+    const token = localStorage.getItem('token');
+    return axios.get(`${API_BASE_URL}/orders/my-orders`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+};

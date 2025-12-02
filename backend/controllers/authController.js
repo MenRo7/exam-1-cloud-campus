@@ -6,9 +6,23 @@ require('dotenv').config();
 const axios = require('axios');
 const authLog = require('debug')('authRoutes:console');
 const logger = require('../config/logger');
+const { validationResult } = require('express-validator');
 //const sendEmail = require('../services/emailService');
 
 exports.login = async (req, res) => {
+  // Vérifier les erreurs de validation
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    logger.warn('Tentative de connexion avec données invalides', {
+      errors: errors.array(),
+      ip: req.ip
+    });
+    return res.status(400).json({
+      message: 'Données invalides',
+      errors: errors.array()
+    });
+  }
+
   const { username, password } = req.body;
   authLog(`username is ${username} password is ${password}`);
 
@@ -67,6 +81,19 @@ exports.login = async (req, res) => {
 
 
 exports.register = async (req, res) => {
+  // Vérifier les erreurs de validation
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    logger.warn('Tentative d\'inscription avec données invalides', {
+      errors: errors.array(),
+      ip: req.ip
+    });
+    return res.status(400).json({
+      message: 'Données invalides',
+      errors: errors.array()
+    });
+  }
+
   const { username, email, password } = req.body;
   authLog(`username is ${username} email is ${email} password is ${password}`);
 
@@ -79,15 +106,25 @@ exports.register = async (req, res) => {
 
   try {
     // Vérifier si l'email ou le nom d'utilisateur existe déjà
-    const existingUser = await User.findOne({ email });
+    const existingEmail = await User.findOne({ email });
+    const existingUsername = await User.findOne({ username });
 
-    if (existingUser) {
-      authLog(`user exist => ${JSON.stringify(existingUser)}`)
+    if (existingEmail) {
+      authLog(`email exist => ${JSON.stringify(existingEmail)}`)
       logger.warn('Tentative d\'inscription avec email existant', {
         email,
         ip: req.ip
       });
       return res.status(400).json({ message: 'Cet email est déjà utilisé.' });
+    }
+
+    if (existingUsername) {
+      authLog(`username exist => ${JSON.stringify(existingUsername)}`)
+      logger.warn('Tentative d\'inscription avec username existant', {
+        username,
+        ip: req.ip
+      });
+      return res.status(400).json({ message: 'Ce nom d\'utilisateur est déjà utilisé.' });
     }
 
     // Créer un nouvel utilisateur

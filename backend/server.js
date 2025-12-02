@@ -6,6 +6,8 @@ const connectDB = require('./config/db');
 const logger = require('./config/logger');
 const { morganMiddleware, errorLogger } = require('./middlewares/requestLogger');
 const { helmetConfig, apiLimiter, authLimiter, corsOptions } = require('./middlewares/security');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
 const fs = require('fs');
 const path = require('path');
 
@@ -29,6 +31,12 @@ app.use(cors(corsOptions()));
 // Body parser avec limite de taille
 app.use(express.json({ limit: '10mb' }));
 
+// Sécurité : Protection contre les injections NoSQL
+app.use(mongoSanitize());
+
+// Sécurité : Protection contre les attaques XSS
+app.use(xss());
+
 // Middleware de logging HTTP
 app.use(morganMiddleware);
 
@@ -45,6 +53,7 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 // Route de health check pour monitoring
 app.get('/health', (req, res) => {

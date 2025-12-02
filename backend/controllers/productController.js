@@ -1,9 +1,18 @@
 // controllers/productController.js
 const Product = require('../models/Product');
+const logger = require('../config/logger');
 
 exports.getProducts = async (req, res) => {
-    const products = await Product.find();
-    res.json(products);
+    try {
+        const products = await Product.find();
+        res.json(products);
+    } catch (error) {
+        logger.error('Erreur lors de la récupération des produits', {
+            error: error.message,
+            stack: error.stack
+        });
+        res.status(500).json({ message: 'Erreur serveur lors de la récupération des produits.' });
+    }
 };
 
 exports.updateProductStock = async (req, res) => {

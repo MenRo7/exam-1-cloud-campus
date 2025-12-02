@@ -30,3 +30,11 @@ services:
     build: ./microservices/stock-management
     ports:
       - '3002:3002'
+
+  gateway:
+    build: ./gateway
+    ports:
+      - '8000:8000'
+    depends_on:
+      - notifications
+      - stock-management

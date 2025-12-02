@@ -5,6 +5,7 @@ require('dotenv').config();
 const connectDB = require('./config/db');
 const logger = require('./config/logger');
 const { morganMiddleware, errorLogger } = require('./middlewares/requestLogger');
+const { helmetConfig, apiLimiter, authLimiter, corsOptions } = require('./middlewares/security');
 const fs = require('fs');
 const path = require('path');
 
@@ -19,15 +20,26 @@ if (!fs.existsSync(logsDir)) {
 // Connexion à la base de données
 connectDB();
 
-// Middlewares
-app.use(cors());
-app.use(express.json());
+// Sécurité : Helmet pour headers HTTP sécurisés
+app.use(helmetConfig);
+
+// Sécurité : CORS configuré
+app.use(cors(corsOptions()));
+
+// Body parser avec limite de taille
+app.use(express.json({ limit: '10mb' }));
 
 // Middleware de logging HTTP
 app.use(morganMiddleware);
 
 // Log au démarrage
 logger.info('Application backend démarrée');
+
+// Rate limiting pour toutes les routes API
+app.use('/api/', apiLimiter);
+
+// Rate limiting strict pour login
+app.use('/api/auth/login', authLimiter);
 
 // Routes
 app.use('/api/products', require('./routes/productRoutes'));

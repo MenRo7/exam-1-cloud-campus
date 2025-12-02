@@ -1,0 +1,82 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'gateway/**'
+      - 'microservices/**'
+      - '.github/workflows/deploy-railway.yml'
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to Railway
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Backend
+        working-directory: ./backend
+        run: railway up --service backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Notify deployment
+        if: success()
+        run: echo "✅ Backend deployed to Railway!"
+
+  deploy-gateway:
+    name: Deploy Gateway to Railway
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Gateway
+        working-directory: ./gateway
+        run: railway up --service gateway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Notify deployment
+        if: success()
+        run: echo "✅ Gateway deployed to Railway!"
+
+  deploy-microservices:
+    name: Deploy Microservices to Railway
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Notifications Service
+        working-directory: ./microservices/notifications
+        run: railway up --service notifications
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Stock Management Service
+        working-directory: ./microservices/stock-management
+        run: railway up --service stock-management
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Notify deployment
+        if: success()
+        run: echo "✅ Microservices deployed to Railway!"

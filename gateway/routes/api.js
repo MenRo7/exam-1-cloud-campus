@@ -7,7 +7,7 @@ const router = express.Router();
 const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL;
 
 router.use('/', proxy(BACKEND_SERVICE_URL, {
-  proxyReqPathResolver: (req) => req.originalUrl,
+  proxyReqPathResolver: (req) => `/api${req.url}`,
 }));
 
 module.exports = router;

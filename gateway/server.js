@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 //const authProxy = require('./routes/auth');
 const notifiProxy = require('./routes/notifi');
 const stockProxy = require('./routes/stock');
+const apiProxy = require('./routes/api');
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 //app.use('/auth', authProxy);
 app.use('/notify', notifiProxy);
 app.use('/update-stock', stockProxy);
+app.use('/api', apiProxy);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

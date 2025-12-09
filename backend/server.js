@@ -86,7 +86,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Serveur en écoute sur le port ${PORT}`, {
     port: PORT,
     nodeEnv: process.env.NODE_ENV || 'development'
